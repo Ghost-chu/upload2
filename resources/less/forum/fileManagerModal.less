@@ -52,7 +52,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: color-mix(in srgb, var(--control-bg) 90%, transparent 10%);
+        background: var(--control-bg);
         z-index: 5;
         transition: opacity 150ms ease-in-out;
         pointer-events: none;
@@ -78,7 +78,7 @@
     .Modal-content.fof-upload-dragging,
     .Modal-content.fof-upload-dropping {
         .fof-drag-and-drop {
-            opacity: 1;
+            opacity: 0.9;
         }
     }
 

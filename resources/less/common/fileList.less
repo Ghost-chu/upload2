@@ -23,7 +23,7 @@
         min-height: 150px; // Maintain a minimum height
 
         &:hover {
-            box-shadow: 0 4px 6px color-mix(in srgb, var(--shadow-color) 95%, black 5%);
+            box-shadow: 0 4px 8px var(--shadow-color);
 
             .fof-file-actions {
                 opacity: 1; // Show actions on hover
@@ -36,10 +36,11 @@
 
         &.selected {
             border: 2px solid var(--primary-color);
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent 80%);
+            box-shadow: 0 0 0 3px var(--primary-color);
+            opacity: 0.9;
 
             .fof-file-name {
-                background-color: color-mix(in srgb, var(--primary-color) 90%, black 10%);
+                background-color: var(--primary-color);
             }
         }
 
@@ -80,15 +81,13 @@
         }
 
         .fof-file-action {
-            background-color: color-mix(
-                in srgb,
-                var(--body-bg) 70%,
-                transparent 30%
-            ); // Button background with transparency
+            background-color: var(--body-bg);
+            opacity: 0.7;
             color: var(--muted-color);
             &:hover,
             &:focus {
                 color: var(--link-color); // Change color on hover/focus
+                opacity: 1;
             }
         }
 
@@ -97,11 +96,7 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background-color: color-mix(
-                in srgb,
-                var(--text-color) 70%,
-                transparent 30%
-            ); // Semi-transparent overlay
+            background-color: var(--text-color);
             color: var(--body-bg); // Text color
             padding: 4px;
             text-align: center;
