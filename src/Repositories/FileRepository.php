@@ -35,8 +35,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Support\Str;
-use League\Flysystem\Adapter\Local;
+use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\Filesystem;
+use Illuminate\Database\Connection;
+use Illuminate\Support\Facades\DB;
 use Psr\Http\Message\UploadedFileInterface;
 use Ramsey\Uuid\Uuid;
 use Symfony\Component\HttpFoundation\File\UploadedFile as Upload;
@@ -61,6 +63,36 @@ class FileRepository
         private MimeTypeDetector $mimeTypeDetector
     ) {
         $this->path = $paths->storage;
+    }
+
+    /**
+     * Generate a cross-database compatible CONCAT expression.
+     * Wraps a column with wildcards for LIKE queries.
+     */
+    private function getConcatExpression(Connection $connection, string $column): string
+    {
+        $driver = $connection->getDriverName();
+
+        return match ($driver) {
+            'mysql', 'mariadb' => "CONCAT('%', {$column}, '%')",
+            'pgsql', 'sqlite' => "'%' || {$column} || '%'",
+            default => throw new \RuntimeException("Unsupported database driver: {$driver}"),
+        };
+    }
+
+    /**
+     * Generate a cross-database compatible GROUP_CONCAT expression.
+     */
+    private function getGroupConcatExpression(Connection $connection, string $column): string
+    {
+        $driver = $connection->getDriverName();
+
+        return match ($driver) {
+            'mysql', 'mariadb' => "GROUP_CONCAT(DISTINCT {$column} SEPARATOR ',')",
+            'pgsql' => "STRING_AGG(DISTINCT {$column}::VARCHAR, ',')",
+            'sqlite' => "GROUP_CONCAT(DISTINCT {$column}, ',')",
+            default => throw new \RuntimeException("Unsupported database driver: {$driver}"),
+        };
     }
 
     public function query(): Builder
@@ -175,7 +207,12 @@ class FileRepository
     {
         $filesystem = $this->getTempFilesystem($file->getPath());
         if ($filesystem->has($file->getBasename())) {
-            return $filesystem->delete($file->getBasename());
+            try {
+                $filesystem->delete($file->getBasename());
+                return true;
+            } catch (\Throwable $e) {
+                return false;
+            }
         }
 
         return true;
@@ -183,7 +220,7 @@ class FileRepository
 
     protected function getTempFilesystem(string $path): Filesystem
     {
-        return new Filesystem(new Local($path));
+        return new Filesystem(new LocalFilesystemAdapter($path));
     }
 
     public function determineExtension(Upload $upload): string
@@ -250,6 +287,7 @@ class FileRepository
 
         $db = (new File())->getConnection();
         $prefix = $db->getTablePrefix();
+        $concatExpr = $this->getConcatExpression($db, "{$prefix}{$table}.url");
 
         File::query()
             // Files already mapped to the post.
@@ -260,7 +298,7 @@ class FileRepository
                     ->select($db->raw(1))
                     ->from('posts')
                     ->where('posts.id', $post->id)
-                    ->whereColumn('posts.content', 'like', $db->raw("CONCAT('%', $prefix$table.url, '%')"))
+                    ->whereRaw("posts.content LIKE {$concatExpr}")
             )
             // Loop over every found item to de- or attach.
             ->each(function (File $file) use ($post) {
@@ -277,6 +315,8 @@ class FileRepository
         $table = (new File())->getTable();
         $db = (new File())->getConnection();
         $prefix = $db->getTablePrefix();
+        $concatExpr = $this->getConcatExpression($db, "{$prefix}{$table}.url");
+        $groupConcatExpr = $this->getGroupConcatExpression($db, "{$prefix}posts.id");
 
         $changes = 0;
 
@@ -285,12 +325,12 @@ class FileRepository
             // Sorting is required when using each, for bulk querying.
             ->orderBy("$table.id")
             // Load everything for files, and any matched post ids concatenated.
-            ->select("$table.*", $db->raw("group_concat(distinct {$prefix}posts.id) as matched_post_ids"))
+            ->select("$table.*", $db->raw("{$groupConcatExpr} as matched_post_ids"))
             // Join on the posts table so that we can find posts that contain the file url.
-            ->leftJoin('posts', function (JoinClause $join) use ($table, $db, $prefix) {
+            ->leftJoin('posts', function (JoinClause $join) use ($table, $db, $prefix, $concatExpr) {
                 $join
                     ->on("$table.actor_id", '=', 'posts.user_id')
-                    ->where('posts.content', 'like', $db->raw("CONCAT('%', $prefix$table.url, '%')"));
+                    ->whereRaw("posts.content LIKE {$concatExpr}");
             })
             // Group the results by file id, this works together with the group_concat in the select.
             ->groupBy("$table.id")
@@ -298,9 +338,9 @@ class FileRepository
             ->each(function (File $file) use (&$changes) {
                 // Sync attaches and detaches in one swoop. This updates the intermediate table.
                 // $file->matched_post_ids contains all posts by author that contain the file url.
-                $attached = $file->posts()->sync(
-                    array_filter(explode(',', $file->matched_post_ids ?? ''))
-                );
+                $matchedIds = $file->getAttribute('matched_post_ids');
+                $postIds = $matchedIds ? explode(',', (string) $matchedIds) : [];
+                $attached = $file->posts()->sync(array_filter($postIds));
 
                 $changes += count($attached);
             });

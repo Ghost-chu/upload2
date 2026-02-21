@@ -12,13 +12,9 @@
 
 namespace FoF\Upload;
 
-use Flarum\Api\Controller\ListDiscussionsController;
-use Flarum\Api\Controller\ListPostsController;
-use Flarum\Api\Controller\ShowForumController;
-use Flarum\Api\Controller\ShowUserController;
-use Flarum\Api\Serializer\CurrentUserSerializer;
-use Flarum\Api\Serializer\ForumSerializer;
-use Flarum\Api\Serializer\UserSerializer;
+use Flarum\Api\Context;
+use Flarum\Api\Endpoint;
+use Flarum\Api\Resource;
 use Flarum\Extend;
 use Flarum\Gdpr\Extend\UserData;
 use Flarum\Post\Event\Posted;
@@ -29,7 +25,6 @@ use FoF\Upload\Events\File\WillBeUploaded;
 use FoF\Upload\Exceptions\ExceptionHandler;
 use FoF\Upload\Exceptions\InvalidUploadException;
 use FoF\Upload\Extend\SvgSanitizer;
-use FoF\Upload\Extenders\LoadFilesRelationship;
 use FoF\Upload\Helpers\Util;
 
 return [
@@ -71,17 +66,39 @@ return [
             return $model->foffiles()->where('hidden', false);
         }),
 
-    (new Extend\ApiController(ShowUserController::class))
-        ->prepareDataForSerialization([LoadFilesRelationship::class, 'countRelations']),
-    (new Extend\ApiController(ShowForumController::class))
-        ->prepareDataForSerialization([LoadFilesRelationship::class, 'countRelations']),
-    (new Extend\ApiController(ListDiscussionsController::class))
-        ->prepareDataForSerialization([LoadFilesRelationship::class, 'countRelations']),
-    (new Extend\ApiController(ListPostsController::class))
-        ->prepareDataForSerialization([LoadFilesRelationship::class, 'countRelations']),
+    (new Extend\ApiResource(Resource\UserResource::class))
+        ->fields(Api\UserResourceFields::class)
+        ->endpoint([Endpoint\Show::class, Endpoint\Index::class], function (Endpoint\Show|Endpoint\Index $endpoint): Endpoint\Endpoint {
+            return $endpoint->beforeSerialization(function (Context $context, $model) {
+                if ($model instanceof \Flarum\Database\Eloquent\Collection) {
+                    $model->loadCount(['foffiles', 'foffilesCurrent']);
+                } elseif ($model instanceof User) {
+                    $model->loadCount(['foffiles', 'foffilesCurrent']);
+                }
+            });
+        }),
 
-    (new Extend\ApiSerializer(ForumSerializer::class))
-        ->attributes(Extenders\AddForumAttributes::class),
+    (new Extend\ApiResource(Resource\ForumResource::class))
+        ->fields(Api\ForumResourceFields::class)
+        ->endpoint(Endpoint\Show::class, function (Endpoint\Show $endpoint): Endpoint\Show {
+            return $endpoint->before(function (Context $context) {
+                $context->getActor()->load(['foffiles', 'foffilesCurrent']);
+            });
+        }),
+
+    (new Extend\ApiResource(Resource\DiscussionResource::class))
+        ->endpoint(Endpoint\Index::class, function (Endpoint\Index $endpoint): Endpoint\Index {
+            return $endpoint->eagerLoadWhenIncluded([
+                'user' => ['user.foffiles', 'user.foffilesCurrent'],
+            ]);
+        }),
+
+    (new Extend\ApiResource(Resource\PostResource::class))
+        ->endpoint(Endpoint\Index::class, function (Endpoint\Index $endpoint): Endpoint\Index {
+            return $endpoint->eagerLoadWhenIncluded([
+                'user' => ['user.foffiles', 'user.foffilesCurrent'],
+            ]);
+        }),
 
     (new Extend\Event())
         ->listen(Deserializing::class, Listeners\AddAvailableOptionsInAdmin::class)
@@ -102,11 +119,7 @@ return [
     (new Extend\View())
         ->namespace('fof-upload.templates', __DIR__.'/resources/templates'),
 
-    (new Extend\ApiSerializer(CurrentUserSerializer::class))
-        ->attributes(Extenders\AddCurrentUserAttributes::class),
 
-    (new Extend\ApiSerializer(UserSerializer::class))
-        ->attributes(Extenders\AddUserAttributes::class),
 
     (new Extend\Formatter())
         ->render(Formatter\ImagePreview\FormatImagePreview::class)

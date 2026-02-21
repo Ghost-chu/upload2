@@ -1,5 +1,5 @@
 {
-    "name": "fof/upload",
+    "name": "fof/upload2",
     "description": "The file upload extension for the Flarum forum with insane intelligence.",
     "keywords": [
         "upload",
@@ -32,10 +32,10 @@
         }
     ],
     "require": {
-        "php": "^8.1",
+        "php": "^8.2",
         "ext-json": "*",
         "enshrined/svg-sanitize": "^0",
-        "flarum/core": "^1.8.3",
+        "flarum/core": "^2.0.0-beta.6",
         "guzzlehttp/guzzle": "^6.0 || ^7.0",
         "ramsey/uuid": "^3.5.2 || ^4",
         "softcreatr/php-mime-detector": "^4.0"
@@ -44,15 +44,13 @@
         "flagrow/upload": "*"
     },
     "suggest": {
-        "league/flysystem-aws-s3-v3": "Uploads to AWS S3 using API version 3.",
-        "overtrue/flysystem-qiniu": "Uploads to QiNiu using API."
+        "league/flysystem-aws-s3-v3": "Uploads to AWS S3 using API version 3."
     },
     "require-dev": {
-        "league/flysystem-aws-s3-v3": "^1.0",
-        "overtrue/flysystem-qiniu": "1.0.4",
-        "flarum/gdpr": "dev-main",
-        "flarum/phpstan": "*",
-        "flarum/testing": "^1.0.0"
+        "league/flysystem-aws-s3-v3": "@dev",
+        "flarum/gdpr": "@dev",
+        "flarum/phpstan": "@dev",
+        "flarum/testing": "@dev"
     },
     "extra": {
         "flarum-extension": {
