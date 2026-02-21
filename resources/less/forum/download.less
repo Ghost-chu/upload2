@@ -29,7 +29,7 @@
                 position: relative;
 
                 > div {
-                    color: var(--text-color);
+                    color: @text-color;
 
                     > span {
                         position: absolute;
@@ -46,21 +46,21 @@
         }
 
         .wrapper {
-            background-color: var(--body-bg);
+            background-color: @body-bg;
             min-height: 250px;
             position: relative;
             overflow: hidden;
 
-            box-shadow: 0 0 10px 1px var(--shadow-color);
+            box-shadow: 0 0 10px 1px @shadow-color;
 
             &:hover {
                 .data {
-                    background-color: var(--body-bg);
+                    background-color: @body-bg;
                     transform: translateY(0);
                 }
 
                 .header {
-                    background-color: var(--body-bg);
+                    background-color: @body-bg;
 
                     .menu-content {
                         span {
@@ -84,7 +84,7 @@
                 z-index: 1;
             }
 
-            color: var(--text-color);
+            color: @text-color;
             transform: translateY(calc(70px + 14em));
         }
 
